@@ -10,10 +10,10 @@ class Program
     public static Texture cubeText = new Texture("../../Assets/cube.png");
     public static Tile[,] tiles = new Tile[32,32];
     public static View view = new View(new FloatRect(0, 0, WIDTH, HEIGHT));
-    public static float CameraSpeed = 5.0f;
+    public static float CameraSpeed = 10.0f;
     public static float ZoomFactor = 1.05f;
-    public static float amplitude = 10f;
-    public static float frequency = 1000f;
+    public static float amplitude = 0.5f;
+    public static float frequency = 2f;
     public static Random random = new Random();
     public static Clock clock = new Clock();
     public static void Main(string[] args)
@@ -30,8 +30,9 @@ class Program
                 tiles[i, j].sprite.Position = TransformVector(i, j);
             }
         }
-        tiles[10, 10].sprite.Position = new Vector2f(tiles[10, 10].sprite.Position.X, tiles[10, 10].sprite.Position.Y - 25);
-        tiles[11, 10].sprite.Position = new Vector2f(tiles[11, 10].sprite.Position.X, tiles[11, 10].sprite.Position.Y - 50);
+
+        //tiles[10, 10].sprite.Position = new Vector2f(tiles[10, 10].sprite.Position.X, tiles[10, 10].sprite.Position.Y - 25);
+        //tiles[11, 10].sprite.Position = new Vector2f(tiles[11, 10].sprite.Position.X, tiles[11, 10].sprite.Position.Y - 50);
         while (window.IsOpen)
         {
             float deltaTime = clock.Restart().AsSeconds();
@@ -42,8 +43,17 @@ class Program
             {
                 for (int j = 0; j < 32; j++)
                 {
+
+                    double seconds = DateTime.Now.Second;
+                    double phaseShift = frequency * (0.3 * i + 0.3 * j);
+                    double shiftedSeconds = seconds - phaseShift;
+                    double sinValue = Math.Sin(shiftedSeconds);
                     Tile tile = tiles[i, j];
-                    window.Draw(tile.sprite);
+                    Vector2f pos = tile.sprite.Position;
+                    float baseLine = pos.Y;
+                    pos = new Vector2f(pos.X, baseLine + amplitude * (float)sinValue);
+                    tile.sprite.Position = pos;
+                    window.Draw(tiles[i,j].sprite);
 
                 }
             }
@@ -89,7 +99,6 @@ class Program
 
         return new Vector2f(newx, newy);
     }
-
 }
 
 class Tile
