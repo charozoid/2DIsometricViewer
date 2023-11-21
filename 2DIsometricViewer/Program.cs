@@ -6,6 +6,7 @@ class Program
     public static int chosenElevation = 0;
     public static Random random = new Random();
     public static Dictionary<Block.Type, IntRect> spritePos = new Dictionary<Block.Type, IntRect>();
+    public static bool menuOpened = false;
     public static void Main(string[] args)
     {
         Clock keyPressedClock = new Clock();
@@ -34,6 +35,7 @@ class Program
             Ui.WriteElevation();
             Ui.WriteGridCoords();
             Ui.WriteRealCoords();
+            //Ui.MousePosInMenu();
             Graphics.window.DispatchEvents();
             Graphics.window.Display();
         }
@@ -66,8 +68,19 @@ class Program
         {
             Graphics.view.Zoom(1.0f / Graphics.ZoomFactor);
         }
+        if (Keyboard.IsKeyPressed(Keyboard.Key.Q))
+        {
+            Ui.DrawBlockSelectionMenu();
+            menuOpened = true;
+        }
+        else
+        {
+            menuOpened = false;
+        }
         if (Mouse.IsButtonPressed(Mouse.Button.Left))
         {
+            if (menuOpened)
+                return;
             Vector2i mousePos = Mouse.GetPosition(Graphics.window);
             Vector2f worldCoords = Graphics.window.MapPixelToCoords(mousePos, Graphics.view);
             Graphics.CreateBlock(LinearTransformations.GetMouseGrid(worldCoords, Graphics.view), Block.Type.Block);
@@ -156,7 +169,8 @@ class Graphics
     }
     public static void DrawBlockOnCursor()
     {
-
+        if (Program.menuOpened)
+            return;
         Vector2f gridCoords = MousePositionToGrid();
         Block block = new Block((int)gridCoords.X, (int)gridCoords.Y, Program.chosenElevation, Block.Type.Block);
         window.Draw(block.sprite);
@@ -197,8 +211,95 @@ class Graphics
     }
 }
 
+class UIElement
+{
+    public Vector2f position { get; set;}
+    public Vector2f size { get; set;}
+    public UIElement(Vector2f position, Vector2f size)
+    {
+        this.position = position;
+        this.size = size;
+    }
+    public virtual void Draw()
+    {
+
+    }
+    public virtual void KeyPressed()
+    {
+
+    }
+}
+class SelectedElement : UIElement
+{
+    public Vector2f chosenGrid = new Vector2f(0, 0);
+    public SelectedElement(Vector2f position, Vector2f size) : base(position, size)
+    {
+
+    }
+    public override void Draw()
+    {
+        RectangleShape shape = new RectangleShape(size);
+        shape.FillColor = Color.White;
+        shape.Position = position;
+        Graphics.window.Draw(shape);
+    }
+}
+class SelectionMenu : UIElement 
+{ 
+    private List<UIElement> children = new List<UIElement>();
+    private SelectedElement selectedElement;
+    public SelectionMenu(Vector2f position, Vector2f size) : base(position, size)
+    {
+        selectedElement = new SelectedElement(position, new Vector2f(64, 64));
+    }
+
+    public Vector2f GetMousePosToGrid()
+    {
+        Vector2f viewCenter = Graphics.ui.Center;
+        Vector2i mousePos = Mouse.GetPosition(Graphics.window);
+        int offsetx = (mousePos.X - ((Graphics.WIDTH / 2) - 256));
+        int offsety = ((int)viewCenter.Y - 256 - mousePos.Y);
+        Vector2i pos = new Vector2i(offsetx / 64, offsety / 64);
+        return new Vector2f(pos.X, pos.Y);
+    }
+    public void AddChildren(UIElement child)
+    {
+        children.Add(child);
+    }
+    public override void KeyPressed()
+    {
+        if (Mouse.IsButtonPressed(Mouse.Button.Left))
+        {
+            Vector2f gridPos = GetMousePosToGrid();
+            selectedElement.position = new Vector2f(gridPos.X * 64, gridPos.Y * 64);
+        }
+    }
+    public override void Draw()
+    {
+
+        Vector2f view = Graphics.ui.Center;
+        Sprite sprite = new Sprite(Graphics.cubeText);
+        sprite.Color = new Color(255, 255, 255, 255);
+        sprite.Scale = new Vector2f(2.0f, 2.0f);
+        sprite.Position = new Vector2f(view.X - 256, view.Y - 256);
+        RectangleShape shape = new RectangleShape(size);
+        shape.FillColor = new Color(32, 32, 32, 200);
+        shape.Position = position;
+
+        KeyPressed();
+        selectedElement.position = position + selectedElement.position;
+        selectedElement.Draw();
+        Graphics.window.Draw(shape);
+        Graphics.window.Draw(sprite);
+
+    }
+
+}
+
+
 class Ui
 {
+    public static Vector2f chosenGrid = new Vector2f(0, 0);
     public static void WriteElevation()
     {
         Graphics.window.SetView(Graphics.ui);
@@ -214,6 +315,16 @@ class Ui
         text.Position = new Vector2f(0, 0);
         Graphics.window.Draw(text);
     }
+    public static void DrawBlockSelectionMenu()
+    {
+        View ui = Graphics.ui;
+        Graphics.window.SetView(ui);
+        Vector2f view = ui.Center;
+        SelectionMenu selectionMenu = new SelectionMenu(new Vector2f(view.X - 256, view.Y - 256), new Vector2f(512, 512));
+        SelectedElement selectedElement = new SelectedElement(new Vector2f(0, 0), new Vector2f(64, 64));
+        selectionMenu.AddChildren(selectedElement);
+        selectionMenu.Draw();
+    }
     public static void WriteRealCoords()
     {
         Graphics.window.SetView(Graphics.ui);
@@ -222,7 +333,6 @@ class Ui
         text.Position = new Vector2f(0, 50);
         Graphics.window.Draw(text);
     }
-
 }
 class LinearTransformations
 {
