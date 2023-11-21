@@ -35,14 +35,13 @@ class Program
             Ui.WriteElevation();
             Ui.WriteGridCoords();
             Ui.WriteRealCoords();
-            //Ui.MousePosInMenu();
             Graphics.window.DispatchEvents();
             Graphics.window.Display();
         }
     }
 
 
-    public static void KeyPressed()
+    public static void  KeyPressed()
     {
         if (Keyboard.IsKeyPressed(Keyboard.Key.Up))
         {
@@ -126,7 +125,7 @@ class Graphics
     public static Texture cubeText = new Texture("../../Assets/spritesheet.png");
 
     public static Block[,,] blocks = new Block[32, 32, 8];
-    
+
     public static float CameraSpeed = 2.0f;
     public static float ZoomFactor = 1.01f;
     public static void DrawGrid()
@@ -156,7 +155,7 @@ class Graphics
                         CalculateShadow(block);
                         window.Draw(blocks[i, j, k].sprite);
                         DrawBlockOnCursor();
-                        
+
                     }
                 }
             }
@@ -170,9 +169,14 @@ class Graphics
     public static void DrawBlockOnCursor()
     {
         if (Program.menuOpened)
+        {
             return;
+        }
+
         Vector2f gridCoords = MousePositionToGrid();
-        Block block = new Block((int)gridCoords.X, (int)gridCoords.Y, Program.chosenElevation, Block.Type.Block);
+        Vector2f menuPos = Ui.selectionMenu.selectedPos;
+        IntRect intRect = new IntRect((int)menuPos.X / 2, (int)menuPos.Y / 2, 32, 32);
+        Block block = new Block((int)gridCoords.X, (int)gridCoords.Y, Program.chosenElevation, intRect);
         window.Draw(block.sprite);
     }
     public static void CreateBlock(Vector2f position, Block.Type type)
@@ -183,7 +187,9 @@ class Graphics
         {
             return;
         }
-        blocks[x, y, Program.chosenElevation] = new Block(x, y, Program.chosenElevation, type);
+        Vector2f menuPos = Ui.selectionMenu.selectedPos;
+        IntRect intRect = new IntRect((int)menuPos.X / 2, (int)menuPos.Y / 2, 32, 32);
+        blocks[x, y, Program.chosenElevation] = new Block(x, y, Program.chosenElevation, intRect);
         CalculateBlockShadow();
     }
     public static void CalculateBlockShadow()
@@ -209,12 +215,18 @@ class Graphics
         Vector2f worldCoords = window.MapPixelToCoords(mousePos, view);
         return LinearTransformations.GetMouseGrid(worldCoords, view);
     }
+    public static IntRect GridToIntRect(Vector2f grid)
+    {
+        return new IntRect((int)grid.X * 32, (int)grid.Y * 32, 32, 32);
+    }
 }
 
 class UIElement
 {
-    public Vector2f position { get; set;}
-    public Vector2f size { get; set;}
+    public Vector2f position { get; set; }
+    public Vector2f size { get; set; }
+    public Vector2f selectedPos = new Vector2f(0, 0);
+    public RectangleShape shape = new RectangleShape(new Vector2f(64, 64));
     public UIElement(Vector2f position, Vector2f size)
     {
         this.position = position;
@@ -222,7 +234,10 @@ class UIElement
     }
     public virtual void Draw()
     {
-
+    }
+    public virtual Vector2f GetMousePosToGrid()
+    {
+        return new Vector2f(0, 0);
     }
     public virtual void KeyPressed()
     {
@@ -231,34 +246,31 @@ class UIElement
 }
 class SelectedElement : UIElement
 {
-    public Vector2f chosenGrid = new Vector2f(0, 0);
+    public RectangleShape shape = new RectangleShape(new Vector2f(64, 64));
     public SelectedElement(Vector2f position, Vector2f size) : base(position, size)
     {
-
-    }
-    public override void Draw()
-    {
-        RectangleShape shape = new RectangleShape(size);
         shape.FillColor = Color.White;
-        shape.Position = position;
-        Graphics.window.Draw(shape);
     }
 }
-class SelectionMenu : UIElement 
-{ 
+class SelectionMenu : UIElement
+{
     private List<UIElement> children = new List<UIElement>();
-    private SelectedElement selectedElement;
+    private SelectedElement mouseHover;
+    private SelectedElement selectedBlock;
+    public Vector2f selectedPos = new Vector2f(0, 0);
     public SelectionMenu(Vector2f position, Vector2f size) : base(position, size)
     {
-        selectedElement = new SelectedElement(position, new Vector2f(64, 64));
+        Graphics.window.SetView(Graphics.ui);
+        mouseHover = new SelectedElement(position, new Vector2f(64, 64));
+        selectedBlock = new SelectedElement(position, new Vector2f(64, 64));
+        children.Add(mouseHover);
     }
 
-    public Vector2f GetMousePosToGrid()
+    public override Vector2f GetMousePosToGrid()
     {
-        Vector2f viewCenter = Graphics.ui.Center;
         Vector2i mousePos = Mouse.GetPosition(Graphics.window);
         int offsetx = (mousePos.X - ((Graphics.WIDTH / 2) - 256));
-        int offsety = ((int)viewCenter.Y - 256 - mousePos.Y);
+        int offsety = (mousePos.Y - ((Graphics.HEIGHT / 2)) + 256);
         Vector2i pos = new Vector2i(offsetx / 64, offsety / 64);
         return new Vector2f(pos.X, pos.Y);
     }
@@ -271,24 +283,36 @@ class SelectionMenu : UIElement
         if (Mouse.IsButtonPressed(Mouse.Button.Left))
         {
             Vector2f gridPos = GetMousePosToGrid();
-            selectedElement.position = new Vector2f(gridPos.X * 64, gridPos.Y * 64);
+            selectedPos = new Vector2f(gridPos.X * 64, gridPos.Y * 64);
         }
     }
     public override void Draw()
     {
-
+        Graphics.window.SetView(Graphics.ui);
         Vector2f view = Graphics.ui.Center;
         Sprite sprite = new Sprite(Graphics.cubeText);
         sprite.Color = new Color(255, 255, 255, 255);
         sprite.Scale = new Vector2f(2.0f, 2.0f);
         sprite.Position = new Vector2f(view.X - 256, view.Y - 256);
+
         RectangleShape shape = new RectangleShape(size);
         shape.FillColor = new Color(32, 32, 32, 200);
         shape.Position = position;
 
+        Vector2f mousePos = GetMousePosToGrid();
+        mouseHover.position = position + new Vector2f(mousePos.X * 64, mousePos.Y * 64);
+        mouseHover.shape.Position = position + new Vector2f(mousePos.X * 64, mousePos.Y * 64);
+        mouseHover.Draw();
+
         KeyPressed();
-        selectedElement.position = position + selectedElement.position;
-        selectedElement.Draw();
+        selectedBlock.position = position + selectedPos;
+        selectedBlock.shape.Position = position + selectedPos;
+        selectedBlock.Draw();
+        
+
+
+        Graphics.window.Draw(selectedBlock.shape);
+        Graphics.window.Draw(mouseHover.shape);
         Graphics.window.Draw(shape);
         Graphics.window.Draw(sprite);
 
@@ -299,7 +323,18 @@ class SelectionMenu : UIElement
 
 class Ui
 {
-    public static Vector2f chosenGrid = new Vector2f(0, 0);
+    public static View ui = Graphics.ui;
+    public static Vector2f view = ui.Center;
+    public static SelectionMenu selectionMenu = new SelectionMenu(new Vector2f(view.X - 256, view.Y - 256), new Vector2f(512, 512));
+    public Ui()
+    {
+        View ui = Graphics.ui;
+        Graphics.window.SetView(ui);
+        Vector2f view = ui.Center;
+        SelectedElement selectedElement = new SelectedElement(new Vector2f(0, 0), new Vector2f(64, 64));
+        selectionMenu.AddChildren(selectedElement);
+    }
+    public Vector2f chosenGrid = new Vector2f(0, 0);
     public static void WriteElevation()
     {
         Graphics.window.SetView(Graphics.ui);
@@ -317,12 +352,6 @@ class Ui
     }
     public static void DrawBlockSelectionMenu()
     {
-        View ui = Graphics.ui;
-        Graphics.window.SetView(ui);
-        Vector2f view = ui.Center;
-        SelectionMenu selectionMenu = new SelectionMenu(new Vector2f(view.X - 256, view.Y - 256), new Vector2f(512, 512));
-        SelectedElement selectedElement = new SelectedElement(new Vector2f(0, 0), new Vector2f(64, 64));
-        selectionMenu.AddChildren(selectedElement);
         selectionMenu.Draw();
     }
     public static void WriteRealCoords()
@@ -377,7 +406,7 @@ class Block
         float posy = sprite.Position.Y;
         return new Vector2f(sprite.Position.X, sprite.Position.Y + offset);
     }
-    public Block(int x, int y, int z, Block.Type type)
+    public Block(int x, int y, int z, IntRect intRect)
     {
         this.x = x;
         this.y = y;
@@ -385,7 +414,7 @@ class Block
         realx = x - z;
         realy = y - z;
         sprite = new Sprite(Graphics.cubeText);
-        sprite.TextureRect = Program.spritePos[type];
+        sprite.TextureRect = intRect;
         sprite.Position = LinearTransformations.TransformVectorToIsometric(new Vector2f(x, y));
     }
 }
