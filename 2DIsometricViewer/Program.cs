@@ -1,11 +1,15 @@
 ﻿using SFML.Graphics;
 using SFML.System;
 using SFML.Window;
+using System.Text.Json;
+using Newtonsoft.Json;
+
 class Program
 {
     public static int chosenElevation = 0;
     public static Random random = new Random();
     public static Dictionary<Block.Type, IntRect> spritePos = new Dictionary<Block.Type, IntRect>();
+    const string mapPath = @"../../Assets/maps.json";
     public static bool menuOpened = false;
     public static void Main(string[] args)
     {
@@ -39,9 +43,7 @@ class Program
             Graphics.window.Display();
         }
     }
-
-
-    public static void  KeyPressed()
+    public static void KeyPressed()
     {
         if (Keyboard.IsKeyPressed(Keyboard.Key.Up))
         {
@@ -66,6 +68,14 @@ class Program
         if (Keyboard.IsKeyPressed(Keyboard.Key.PageUp))
         {
             Graphics.view.Zoom(1.0f / Graphics.ZoomFactor);
+        }
+        if (Keyboard.IsKeyPressed(Keyboard.Key.Enter))
+        {
+            SaveMap();
+        }
+        if (Keyboard.IsKeyPressed(Keyboard.Key.L))
+        {
+            LoadMap();
         }
         if (Keyboard.IsKeyPressed(Keyboard.Key.Q))
         {
@@ -110,6 +120,18 @@ class Program
         }
     }
 
+    public static void SaveMap()
+    {
+        string jsonData = JsonConvert.SerializeObject(Graphics.blocks);
+        var mapFile = File.Create(mapPath);
+        mapFile.Close();
+        File.WriteAllText(mapPath, jsonData);
+    }
+    public static void LoadMap()
+    {
+        string jsonData = File.ReadAllText(mapPath);
+        Graphics.blocks = JsonConvert.DeserializeObject<Block[,,]>(jsonData);
+    }
 }
 class Graphics
 {
@@ -152,7 +174,6 @@ class Graphics
                     Block block = blocks[i, j, k];
                     if (blocks[i, j, k] != null && block.z == k)
                     {
-                        CalculateShadow(block);
                         window.Draw(blocks[i, j, k].sprite);
                         DrawBlockOnCursor();
 
@@ -160,10 +181,6 @@ class Graphics
                 }
             }
         }
-
-    }
-    public static void CalculateShadow(Block block)
-    {
 
     }
     public static void DrawBlockOnCursor()
@@ -190,14 +207,6 @@ class Graphics
         Vector2f menuPos = Ui.selectionMenu.selectedPos;
         IntRect intRect = new IntRect((int)menuPos.X / 2, (int)menuPos.Y / 2, 32, 32);
         blocks[x, y, Program.chosenElevation] = new Block(x, y, Program.chosenElevation, intRect);
-        CalculateBlockShadow();
-    }
-    public static void CalculateBlockShadow()
-    {
-        for (int i = Program.chosenElevation; i > 0; i--)
-        {
-
-        }
     }
     public static void RemoveBlock(Vector2f position)
     {
@@ -218,149 +227,6 @@ class Graphics
     public static IntRect GridToIntRect(Vector2f grid)
     {
         return new IntRect((int)grid.X * 32, (int)grid.Y * 32, 32, 32);
-    }
-}
-
-class UIElement
-{
-    public Vector2f position { get; set; }
-    public Vector2f size { get; set; }
-    public Vector2f selectedPos = new Vector2f(0, 0);
-    public RectangleShape shape = new RectangleShape(new Vector2f(64, 64));
-    public UIElement(Vector2f position, Vector2f size)
-    {
-        this.position = position;
-        this.size = size;
-    }
-    public virtual void Draw()
-    {
-    }
-    public virtual Vector2f GetMousePosToGrid()
-    {
-        return new Vector2f(0, 0);
-    }
-    public virtual void KeyPressed()
-    {
-
-    }
-}
-class SelectedElement : UIElement
-{
-    public RectangleShape shape = new RectangleShape(new Vector2f(64, 64));
-    public SelectedElement(Vector2f position, Vector2f size) : base(position, size)
-    {
-        shape.FillColor = Color.White;
-    }
-}
-class SelectionMenu : UIElement
-{
-    private List<UIElement> children = new List<UIElement>();
-    private SelectedElement mouseHover;
-    private SelectedElement selectedBlock;
-    public Vector2f selectedPos = new Vector2f(0, 0);
-    public SelectionMenu(Vector2f position, Vector2f size) : base(position, size)
-    {
-        Graphics.window.SetView(Graphics.ui);
-        mouseHover = new SelectedElement(position, new Vector2f(64, 64));
-        selectedBlock = new SelectedElement(position, new Vector2f(64, 64));
-        children.Add(mouseHover);
-    }
-
-    public override Vector2f GetMousePosToGrid()
-    {
-        Vector2i mousePos = Mouse.GetPosition(Graphics.window);
-        int offsetx = (mousePos.X - ((Graphics.WIDTH / 2) - 256));
-        int offsety = (mousePos.Y - ((Graphics.HEIGHT / 2)) + 256);
-        Vector2i pos = new Vector2i(offsetx / 64, offsety / 64);
-        return new Vector2f(pos.X, pos.Y);
-    }
-    public void AddChildren(UIElement child)
-    {
-        children.Add(child);
-    }
-    public override void KeyPressed()
-    {
-        if (Mouse.IsButtonPressed(Mouse.Button.Left))
-        {
-            Vector2f gridPos = GetMousePosToGrid();
-            selectedPos = new Vector2f(gridPos.X * 64, gridPos.Y * 64);
-        }
-    }
-    public override void Draw()
-    {
-        Graphics.window.SetView(Graphics.ui);
-        Vector2f view = Graphics.ui.Center;
-        Sprite sprite = new Sprite(Graphics.cubeText);
-        sprite.Color = new Color(255, 255, 255, 255);
-        sprite.Scale = new Vector2f(2.0f, 2.0f);
-        sprite.Position = new Vector2f(view.X - 256, view.Y - 256);
-
-        RectangleShape shape = new RectangleShape(size);
-        shape.FillColor = new Color(32, 32, 32, 200);
-        shape.Position = position;
-
-        Vector2f mousePos = GetMousePosToGrid();
-        mouseHover.position = position + new Vector2f(mousePos.X * 64, mousePos.Y * 64);
-        mouseHover.shape.Position = position + new Vector2f(mousePos.X * 64, mousePos.Y * 64);
-        mouseHover.Draw();
-
-        KeyPressed();
-        selectedBlock.position = position + selectedPos;
-        selectedBlock.shape.Position = position + selectedPos;
-        selectedBlock.Draw();
-        
-
-
-        Graphics.window.Draw(selectedBlock.shape);
-        Graphics.window.Draw(mouseHover.shape);
-        Graphics.window.Draw(shape);
-        Graphics.window.Draw(sprite);
-
-    }
-
-}
-
-
-class Ui
-{
-    public static View ui = Graphics.ui;
-    public static Vector2f view = ui.Center;
-    public static SelectionMenu selectionMenu = new SelectionMenu(new Vector2f(view.X - 256, view.Y - 256), new Vector2f(512, 512));
-    public Ui()
-    {
-        View ui = Graphics.ui;
-        Graphics.window.SetView(ui);
-        Vector2f view = ui.Center;
-        SelectedElement selectedElement = new SelectedElement(new Vector2f(0, 0), new Vector2f(64, 64));
-        selectionMenu.AddChildren(selectedElement);
-    }
-    public Vector2f chosenGrid = new Vector2f(0, 0);
-    public static void WriteElevation()
-    {
-        Graphics.window.SetView(Graphics.ui);
-        Text elevationText = new Text($"Elevation: {Program.chosenElevation}", Graphics.font);
-        elevationText.Position = new Vector2f(0, 20);
-        Graphics.window.Draw(elevationText);
-    }
-    public static void WriteGridCoords()
-    {
-        Graphics.window.SetView(Graphics.ui);
-        Vector2f gridCoords = Graphics.MousePositionToGrid();
-        Text text = new Text($"X: {gridCoords.X} Y: {gridCoords.Y}", Graphics.font);
-        text.Position = new Vector2f(0, 0);
-        Graphics.window.Draw(text);
-    }
-    public static void DrawBlockSelectionMenu()
-    {
-        selectionMenu.Draw();
-    }
-    public static void WriteRealCoords()
-    {
-        Graphics.window.SetView(Graphics.ui);
-        Vector2f gridCoords = Graphics.MousePositionToGrid();
-        Text text = new Text($"X: {gridCoords.X + Program.chosenElevation} Y: {gridCoords.Y + Program.chosenElevation}, Z: {Program.chosenElevation}", Graphics.font);
-        text.Position = new Vector2f(0, 50);
-        Graphics.window.Draw(text);
     }
 }
 class LinearTransformations
@@ -394,17 +260,21 @@ class Block
     public int realy = 0;
     public float drawx = 0;
     public float drawy = 0;
-    public Sprite sprite = new Sprite(Graphics.cubeText);
+    [JsonIgnore]
+    public Sprite sprite;
     public enum Type
     {
         Block,
         Water
     }
-
     public Vector2f AddSinOffsetToSprite(float offset)
     {
         float posy = sprite.Position.Y;
         return new Vector2f(sprite.Position.X, sprite.Position.Y + offset);
+    }
+    public void CreateSprite()
+    {
+        sprite = new Sprite(Graphics.cubeText);
     }
     public Block(int x, int y, int z, IntRect intRect)
     {
@@ -414,6 +284,7 @@ class Block
         realx = x - z;
         realy = y - z;
         sprite = new Sprite(Graphics.cubeText);
+        this.intRect = intRect;
         sprite.TextureRect = intRect;
         sprite.Position = LinearTransformations.TransformVectorToIsometric(new Vector2f(x, y));
     }
